@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Assets>
+
+  <MinorBody Id="Phobos" Parent="Mars">
+
+    <GroundClutter>
+
+      <Ecotype Name="AlienCats">
+        <Placement Biomes="Surface">
+          <ObjectSeparation M="8.0" />
+          <GenerationRange M="170" />
+          <MinScale X="3.0" Y="3.0" Z="3.0" />
+          <MaxScale X="5.0" Y="5.0" Z="5.0" />
+          <Orientation Mode="SurfaceNormalSmooth" />
+          <MinRotation Degrees="0" />
+          <MaxRotation Degrees="360" />
+          <DistributionTexture Id="HP_AlienCat_Distribution"
+            Path="Textures/Planets/Phobos/GroundClutter/AlienCat_Distribution.png" />
+          <DistributionTextureTiling Value="8" />
+          <UseObjectTypeTexture Value="false" />
+        </Placement>
+
+        <ClutterObject Name="AlienCatType1">
+          <LODs>
+            <LOD MinScreenSize="128">
+              <Mesh Id="HP_AlienCat_Lod0"
+                Path="Meshes/Planets/Phobos/GroundClutter/AlienCat_Lod0.glb" />
+            </LOD>
+            <LOD MinScreenSize="64">
+              <Mesh Id="HP_AlienCat_Lod1"
+                Path="Meshes/Planets/Phobos/GroundClutter/AlienCat_Lod1.glb" />
+            </LOD>
+            <LOD MinScreenSize="32">
+              <Mesh Id="HP_AlienCat_Lod2"
+                Path="Meshes/Planets/Phobos/GroundClutter/AlienCat_Lod2.glb" />
+            </LOD>
+            <LOD MinScreenSize="16">
+              <Mesh Id="HP_AlienCat_Lod3"
+                Path="Meshes/Planets/Phobos/GroundClutter/AlienCat_Lod3.glb" />
+            </LOD>
+            <LOD MinScreenSize="8">
+              <Mesh Id="HP_AlienCat_Lod4"
+                Path="Meshes/Planets/Phobos/GroundClutter/AlienCat_Lod4.glb" />
+            </LOD>
+          </LODs>
+        </ClutterObject>
+
+        <Material>
+          <Diffuse Id="HP_AlienCatDiffuse"
+            Path="Textures/Planets/Phobos/GroundClutter/AlienCat_Diffuse.png"
+            Category="Terrain"/>
+          <Normal Id="HP_AlienCatNormal"
+            Path="Textures/Planets/Phobos/GroundClutter/AlienCat_Normal.png"
+            Category="Terrain"/>
+          <AoRoughMetal Id="HP_AlienCatAoRoughMetal"
+            Path="Textures/Planets/Phobos/GroundClutter/AlienCat_AoRoughMetal.png"
+            Category="Terrain"/>
+          <UseTerrainMask Value="false" />
+          <DoubleSided Value="true" />
+          <CastShadows Value="true" />
+          <ReceiveShadows Value="true" />
+          <BiasNormalsUp Value="false" />
+          <ApplyExtraSpec Value="false" />
+          <DistanceFadeDither Value="true" />
+        </Material>
+
+      </Ecotype>
+
+    </GroundClutter>
+
+  </MinorBody>
+
+</Assets>
