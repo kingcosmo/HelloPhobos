@@ -1,33 +1,73 @@
 #!/usr/bin/env python3
 """
-HelloPhobos installer
-=====================
+HelloPhobos Installer — KSA v2026.6.x (Linux native build)
+===========================================================
 Run from your KSA linux-x64/ directory:
     python3 Content/HelloPhobos/install.py
-
-What this does:
-  1. Patches Core/Astronomicals.xml to add HELLO WORLD + blob decals to Phobos
-  2. Copies Core's Luna meshes/textures into HelloPhobos/ (avoids redistribution)
-  3. Registers HelloPhobos in Content/manifest.toml
 
 To uninstall:
     python3 Content/HelloPhobos/install.py --uninstall
 """
 
-import sys, shutil, json, re
+import sys, shutil, re, struct, subprocess
 from pathlib import Path
 
-KSA_ROOT = Path(__file__).parent.parent.parent   # linux-x64/
-CORE     = KSA_ROOT / "Content/Core"
-MOD      = KSA_ROOT / "Content/HelloPhobos"
-MANIFEST = KSA_ROOT / "Content/manifest.toml"
-ASTRO    = CORE / "Astronomicals.xml"
-ASTRO_BAK= CORE / "Astronomicals.xml.hellophobos.bak"
+KSA_ROOT  = Path(__file__).parent.parent.parent
+CORE      = KSA_ROOT / "Content/Core"
+MOD       = KSA_ROOT / "Content/HelloPhobos"
+MANIFEST  = KSA_ROOT / "Content/manifest.toml"
+ASTRO     = CORE / "Astronomicals.xml"
+ASTRO_BAK = CORE / "Astronomicals.xml.hellophobos.bak"
 
-DECALS = '''
-                <!-- ── HelloPhobos mod: orbit-visible terrain features ── -->
+# ── Markers so we can cleanly uninstall ───────────────────────────────────────
+MARKER_LUNA_START  = '<!-- ── HelloPhobos: Luna features ── -->'
+MARKER_LUNA_END    = '<!-- ── end HelloPhobos Luna features ── -->'
+MARKER_PHOBOS_START= '<!-- ── HelloPhobos: Phobos decals ── -->'
+MARKER_PHOBOS_END  = '<!-- ── end HelloPhobos Phobos decals ── -->'
+MARKER_CLUTTER_START='<!-- ── HelloPhobos: Phobos GroundClutter ── -->'
+MARKER_CLUTTER_END  ='<!-- ── end HelloPhobos GroundClutter ── -->'
+
+LUNA_DECALS = f"""
+                {MARKER_LUNA_START}
+                <Modifier Type="Decal" Name="LunaHelloMoon" Biomes="Surface,Craters,Maria">
+                    <Amplitude Value="1500" />
+                    <Order Value="9997" />
+                    <Radius Value="300000" />
+                    <Rotation Degrees="0" />
+                    <Location Id="HP_LunaHelloMoonLocation">
+                        <Latitude Degrees="0.674" />
+                        <Longitude Degrees="16.0" />
+                    </Location>
+                    <AltitudeOffset Km="0" />
+                    <SmoothFactor Value="0.1" />
+                    <Additive Value="true" />
+                    <HeightMap Id="HP_LunaHelloMoonHeightMap"
+                        Path="Textures/Planets/Luna/LunaHelloMoon.png"
+                        Category="Terrain"/>
+                </Modifier>
+                <Modifier Type="Decal" Name="LunaLandingRings" Biomes="Surface,Craters,Maria">
+                    <Amplitude Value="1200" />
+                    <Order Value="9996" />
+                    <Radius Value="300000" />
+                    <Rotation Degrees="0" />
+                    <Location Id="HP_LunaRingsLocation">
+                        <Latitude Degrees="0.674" />
+                        <Longitude Degrees="11.0" />
+                    </Location>
+                    <AltitudeOffset Km="0" />
+                    <SmoothFactor Value="0.05" />
+                    <Additive Value="true" />
+                    <HeightMap Id="HP_LunaRingsHeightMap"
+                        Path="Textures/Planets/Luna/LunaLandingRings.png"
+                        Category="Terrain"/>
+                </Modifier>
+                {MARKER_LUNA_END}
+"""
+
+PHOBOS_DECALS = f"""
+                {MARKER_PHOBOS_START}
                 <Modifier Type="Decal" Name="PhobosBlobCreature" Biomes="Surface">
-                    <Amplitude Value="400" />
+                    <Amplitude Value="1500" />
                     <Order Value="9999" />
                     <Radius Value="3000" />
                     <Rotation Degrees="0" />
@@ -42,15 +82,14 @@ DECALS = '''
                         Path="Textures/Planets/Phobos/PhobosBlob.png"
                         Category="Terrain"/>
                 </Modifier>
-
                 <Modifier Type="Decal" Name="PhobosHelloWorld" Biomes="Surface">
-                    <Amplitude Value="350" />
+                    <Amplitude Value="1200" />
                     <Order Value="9998" />
                     <Radius Value="2000" />
                     <Rotation Degrees="0" />
                     <Location Id="HP_HelloWorldLocation">
                         <Latitude Degrees="0.0" />
-                        <Longitude Degrees="180.0" />
+                        <Longitude Degrees="0.0" />
                     </Location>
                     <AltitudeOffset Km="0" />
                     <SmoothFactor Value="0.2" />
@@ -59,218 +98,388 @@ DECALS = '''
                         Path="Textures/Planets/Phobos/PhobosHelloWorld.png"
                         Category="Terrain"/>
                 </Modifier>
-                <!-- ── end HelloPhobos ── -->
-'''
+                {MARKER_PHOBOS_END}
+"""
 
-MARKER_START = "<!-- ── HelloPhobos mod: orbit-visible terrain features ── -->"
-MARKER_END   = "<!-- ── end HelloPhobos ── -->"
+PHOBOS_CLUTTER = f"""        {MARKER_CLUTTER_START}
+        <GroundClutter>
+            <Ecotype Name="AlienCatTiny">
+                <Placement Biomes="Surface">
+                    <ObjectSeparation M="3.0" />
+                    <GenerationRange M="170" />
+                    <MinScale X="1.0" Y="1.0" Z="1.0" />
+                    <MaxScale X="2.0" Y="2.0" Z="2.0" />
+                    <Orientation Mode="SurfaceNormalSmooth" />
+                    <MinRotation Degrees="0" />
+                    <MaxRotation Degrees="360" />
+                    <DistributionTexture Id="HP_AlienCatTiny_Dist"
+                        Path="Textures/Planets/Phobos/GroundClutter/AlienCatTiny_Distribution.png" />
+                    <DistributionTextureTiling Value="1" />
+                    <UseObjectTypeTexture Value="false" />
+                </Placement>
+                <ClutterObject Name="AlienCatTinyMesh">
+                    <LODs>
+                        <LOD MinScreenSize="128">
+                            <Mesh Id="HP_AlienCatT_Lod0" Path="Meshes/Planets/Luna/GroundClutter/Rock0Lod0.glb" />
+                        </LOD>
+                        <LOD MinScreenSize="64">
+                            <Mesh Id="HP_AlienCatT_Lod1" Path="Meshes/Planets/Luna/GroundClutter/Rock0Lod1.glb" />
+                        </LOD>
+                        <LOD MinScreenSize="32">
+                            <Mesh Id="HP_AlienCatT_Lod2" Path="Meshes/Planets/Luna/GroundClutter/Rock0Lod2.glb" />
+                        </LOD>
+                        <LOD MinScreenSize="16">
+                            <Mesh Id="HP_AlienCatT_Lod3" Path="Meshes/Planets/Luna/GroundClutter/Rock0Lod3.glb" />
+                        </LOD>
+                        <LOD MinScreenSize="8">
+                            <Mesh Id="HP_AlienCatT_Lod4" Path="Meshes/Planets/Luna/GroundClutter/Rock0Lod4.glb" />
+                        </LOD>
+                    </LODs>
+                </ClutterObject>
+                <Material>
+                    <Diffuse Id="HP_AlienCatTDiff"
+                        Path="Textures/Planets/Luna/GroundClutter/TestRocks_Diffuse.ktx2"
+                        Category="Terrain"/>
+                    <Normal Id="HP_AlienCatTNorm"
+                        Path="Textures/Planets/Luna/GroundClutter/TestRocks_Normal.dds"
+                        Category="Terrain"/>
+                    <AoRoughMetal Id="HP_AlienCatTORM"
+                        Path="Textures/Planets/Luna/GroundClutter/TestRocks_AoRoughMetal.dds"
+                        Category="Terrain"/>
+                    <UseTerrainMask Value="false" />
+                    <DoubleSided Value="false" />
+                    <CastShadows Value="true" />
+                    <ReceiveShadows Value="true" />
+                    <BiasNormalsUp Value="false" />
+                    <ApplyExtraSpec Value="false" />
+                    <DistanceFadeDither Value="true" />
+                </Material>
+            </Ecotype>
+            <Ecotype Name="AlienCatGiant">
+                <Placement Biomes="Surface">
+                    <ObjectSeparation M="30.0" />
+                    <GenerationRange M="170" />
+                    <MinScale X="8.0" Y="8.0" Z="8.0" />
+                    <MaxScale X="15.0" Y="15.0" Z="15.0" />
+                    <Orientation Mode="SurfaceNormalSmooth" />
+                    <MinRotation Degrees="0" />
+                    <MaxRotation Degrees="360" />
+                    <DistributionTexture Id="HP_AlienCatGiant_Dist"
+                        Path="Textures/Planets/Phobos/GroundClutter/AlienCatGiant_Distribution.png" />
+                    <DistributionTextureTiling Value="1" />
+                    <UseObjectTypeTexture Value="false" />
+                </Placement>
+                <ClutterObject Name="AlienCatGiantMesh">
+                    <LODs>
+                        <LOD MinScreenSize="128">
+                            <Mesh Id="HP_AlienCatG_Lod0" Path="Meshes/Planets/Luna/GroundClutter/Rock0Lod0.glb" />
+                        </LOD>
+                        <LOD MinScreenSize="64">
+                            <Mesh Id="HP_AlienCatG_Lod1" Path="Meshes/Planets/Luna/GroundClutter/Rock0Lod1.glb" />
+                        </LOD>
+                        <LOD MinScreenSize="32">
+                            <Mesh Id="HP_AlienCatG_Lod2" Path="Meshes/Planets/Luna/GroundClutter/Rock0Lod2.glb" />
+                        </LOD>
+                        <LOD MinScreenSize="16">
+                            <Mesh Id="HP_AlienCatG_Lod3" Path="Meshes/Planets/Luna/GroundClutter/Rock0Lod3.glb" />
+                        </LOD>
+                        <LOD MinScreenSize="8">
+                            <Mesh Id="HP_AlienCatG_Lod4" Path="Meshes/Planets/Luna/GroundClutter/Rock0Lod4.glb" />
+                        </LOD>
+                    </LODs>
+                </ClutterObject>
+                <Material>
+                    <Diffuse Id="HP_AlienCatGDiff"
+                        Path="Textures/Planets/Luna/GroundClutter/TestRocks_Diffuse.ktx2"
+                        Category="Terrain"/>
+                    <Normal Id="HP_AlienCatGNorm"
+                        Path="Textures/Planets/Luna/GroundClutter/TestRocks_Normal.dds"
+                        Category="Terrain"/>
+                    <AoRoughMetal Id="HP_AlienCatGORM"
+                        Path="Textures/Planets/Luna/GroundClutter/TestRocks_AoRoughMetal.dds"
+                        Category="Terrain"/>
+                    <UseTerrainMask Value="false" />
+                    <DoubleSided Value="false" />
+                    <CastShadows Value="true" />
+                    <ReceiveShadows Value="true" />
+                    <BiasNormalsUp Value="false" />
+                    <ApplyExtraSpec Value="false" />
+                    <DistanceFadeDither Value="true" />
+                </Material>
+            </Ecotype>
+        </GroundClutter>
+        {MARKER_CLUTTER_END}
+"""
+
+def generate_textures():
+    """Generate PNG heightmap textures for terrain decals."""
+    from PIL import Image, ImageDraw, ImageFont, ImageFilter
+    import math, random
+
+    phobos_tex = CORE / "Textures/Planets/Phobos"
+    luna_tex   = CORE / "Textures/Planets/Luna"
+    phobos_tex.mkdir(parents=True, exist_ok=True)
+
+    # Phobos Blob (organic amoeba shape)
+    size = 512
+    img = Image.new("RGBA", (size, size), (0,0,0,0))
+    draw = ImageDraw.Draw(img)
+    cx, cy = size//2, size//2
+    base_r = size * 0.38
+    rng = random.Random(42)
+    harmonics = [(1,.12),(2,.09),(3,.07),(4,.05),(5,.04),(7,.03)]
+    phases = [rng.uniform(0, 2*math.pi) for _ in harmonics]
+    def blob_r(theta):
+        r = base_r
+        for (freq,amp),phase in zip(harmonics,phases):
+            r += base_r*amp*math.sin(freq*theta+phase)
+        return r
+    pts = [(cx+blob_r(2*math.pi*i/256)*math.cos(2*math.pi*i/256),
+            cy+blob_r(2*math.pi*i/256)*math.sin(2*math.pi*i/256))
+           for i in range(256)]
+    draw.polygon(pts, fill=(255,255,255,255))
+    img = img.filter(ImageFilter.GaussianBlur(radius=8))
+    img.save(str(phobos_tex / "PhobosBlob.png"))
+
+    # Phobos HelloWorld text (mirrored to correct decal projection)
+    img2 = Image.new("RGBA", (size,size), (0,0,0,0))
+    draw2 = ImageDraw.Draw(img2)
+    font = None
+    for fp in ["/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+               "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"]:
+        try: font = ImageFont.truetype(fp, 72); break
+        except: pass
+    if not font: font = ImageFont.load_default()
+    for i, word in enumerate(["HELLO","WORLD"]):
+        bb = draw2.textbbox((0,0),word,font=font)
+        tw,th = bb[2]-bb[0],bb[3]-bb[1]
+        x=(size-tw)//2; y=80+i*(th+30)
+        for dx in range(-4,5):
+            for dy in range(-4,5):
+                draw2.text((x+dx,y+dy),word,fill=(180,180,180,255),font=font)
+        draw2.text((x,y),word,fill=(255,255,255,255),font=font)
+    img2 = img2.filter(ImageFilter.GaussianBlur(radius=3))
+    img2 = img2.transpose(Image.FLIP_LEFT_RIGHT)
+    img2.save(str(phobos_tex / "PhobosHelloWorld.png"))
+
+    # Luna HelloMoon text
+    img3 = Image.new("RGBA", (512,512), (0,0,0,0))
+    draw3 = ImageDraw.Draw(img3)
+    for i, word in enumerate(["HELLO","MOON"]):
+        bb = draw3.textbbox((0,0),word,font=font)
+        tw,th = bb[2]-bb[0],bb[3]-bb[1]
+        x=(512-tw)//2; y=100+i*(th+40)
+        for dx in range(-5,6):
+            for dy in range(-5,6):
+                draw3.text((x+dx,y+dy),word,fill=(160,160,160,255),font=font)
+        draw3.text((x,y),word,fill=(255,255,255,255),font=font)
+    img3 = img3.filter(ImageFilter.GaussianBlur(radius=4))
+    img3 = img3.transpose(Image.FLIP_LEFT_RIGHT)
+    img3.save(str(luna_tex / "LunaHelloMoon.png"))
+
+    # Luna Landing Rings (concentric circles, RGBA)
+    img4 = Image.new("RGBA", (512,512), (0,0,0,255))
+    draw4 = ImageDraw.Draw(img4)
+    cx4, cy4 = 256, 256
+    for outer_f, inner_f, v in [(0.48,0.42,255),(0.35,0.29,220),
+                                  (0.22,0.17,200),(0.11,0.07,230),(0.04,0,255)]:
+        or_=int(outer_f*512); ir_=int(inner_f*512)
+        draw4.ellipse([cx4-or_,cy4-or_,cx4+or_,cy4+or_],fill=(v,v,v,255))
+        if inner_f>0:
+            draw4.ellipse([cx4-ir_,cy4-ir_,cx4+ir_,cy4+ir_],fill=(0,0,0,255))
+    for ang in [0,90,180,270]:
+        a=math.radians(ang)
+        arm=int(0.08*512); r=int(0.48*512); w=int(0.02*512)
+        x1=int(cx4+r*math.sin(a)); y1=int(cy4-r*math.cos(a))
+        x2=int(cx4+(r+arm)*math.sin(a)); y2=int(cy4-(r+arm)*math.cos(a))
+        draw4.line([(x1,y1),(x2,y2)],fill=(255,255,255,255),width=max(2,w))
+    img4 = img4.filter(ImageFilter.GaussianBlur(radius=3))
+    img4.save(str(luna_tex / "LunaLandingRings.png"))
+
+    print("  Textures generated")
+
+
+def copy_core_assets():
+    """Copy Core Luna assets into mod folder (not redistributed in package)."""
+    copies = [
+        (CORE/"Textures/Planets/Luna/GroundClutter/TestRocks_Diffuse.ktx2",
+         MOD/"Textures/Planets/Luna/GroundClutter/TestRocks_Diffuse.ktx2"),
+        (CORE/"Textures/Planets/Luna/GroundClutter/TestRocks_Normal.dds",
+         MOD/"Textures/Planets/Luna/GroundClutter/TestRocks_Normal.dds"),
+        (CORE/"Textures/Planets/Luna/GroundClutter/TestRocks_AoRoughMetal.dds",
+         MOD/"Textures/Planets/Luna/GroundClutter/TestRocks_AoRoughMetal.dds"),
+    ]
+    for src, dst in copies:
+        if src.exists():
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src, dst)
+    # Luna rock GLBs
+    for i in range(5):
+        src = CORE/f"Meshes/Planets/Luna/GroundClutter/Rock0Lod{i}.glb"
+        dst = MOD/f"Meshes/Planets/Luna/GroundClutter/Rock0Lod{i}.glb"
+        if src.exists():
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src, dst)
+    print("  Core assets copied")
 
 
 def patch_astronomicals():
     text = ASTRO.read_text(encoding="utf-8")
-    if MARKER_START in text:
-        print("  Core/Astronomicals.xml already patched — skipping.")
+    if MARKER_LUNA_START in text:
+        print("  Core/Astronomicals.xml already patched")
         return
 
-    # Back up original
     shutil.copy2(ASTRO, ASTRO_BAK)
     print(f"  Backed up to {ASTRO_BAK.name}")
 
-    # Find closing </ProceduralModifiers> inside Phobos block
-    # Search from the PhobosImpacts modifier onwards
+    # 1. Luna decals — insert before TestDecal (confirmed inside Luna block)
+    insert_before = '<Modifier Type="Decal" Name="TestDecal" Biomes="Maria">'
+    pos = text.find(insert_before)
+    if pos == -1:
+        sys.exit("ERROR: TestDecal not found in Luna block")
+    text = text[:pos] + LUNA_DECALS + text[pos:]
+
+    # 2. Phobos decals — insert before </ProceduralModifiers> in Phobos block
     phobos_start = text.find('<MinorBody Id="Phobos"')
-    if phobos_start == -1:
-        sys.exit("ERROR: Could not find Phobos MinorBody in Core/Astronomicals.xml")
+    close = "</ProceduralModifiers>"
+    pos2 = text.find(close, phobos_start)
+    text = text[:pos2] + PHOBOS_DECALS + text[pos2:]
 
-    # Find first </ProceduralModifiers> after Phobos block start
-    close_tag = "</ProceduralModifiers>"
-    insert_pos = text.find(close_tag, phobos_start)
-    if insert_pos == -1:
-        sys.exit("ERROR: Could not find </ProceduralModifiers> in Phobos block")
+    # 3. Phobos GroundClutter — insert after </BiomeMaterials> in Phobos block
+    phobos_start = text.find('<MinorBody Id="Phobos"')
+    bm_close = "</BiomeMaterials>"
+    pos3 = text.find(bm_close, phobos_start) + len(bm_close)
+    text = text[:pos3] + "\n" + PHOBOS_CLUTTER + text[pos3:]
 
-    patched = text[:insert_pos] + DECALS + text[insert_pos:]
-    ASTRO.write_text(patched, encoding="utf-8")
-    print("  Core/Astronomicals.xml patched with Phobos decals.")
+    # 4. Luna landmarks — after Apollo15
+    anchor = '<Landmark Id="Apollo15">'
+    ap_pos = text.find(anchor)
+    close_lm = text.find("</Landmark>", ap_pos) + len("</Landmark>")
+    luna_lm = """
+        <Landmark Id="HelloMoon">
+            <Latitude Degrees="0.674" />
+            <Longitude Degrees="16.0" />
+        </Landmark>
+        <Landmark Id="LandingRings">
+            <Latitude Degrees="0.674" />
+            <Longitude Degrees="11.0" />
+        </Landmark>
+        <Landmark Id="TestDecalSite">
+            <Latitude Degrees="0.0" />
+            <Longitude Degrees="0.0" />
+        </Landmark>"""
+    text = text[:close_lm] + luna_lm + text[close_lm:]
+
+    # 5. Phobos landmarks — after </Rotation> in Phobos block
+    phobos_start = text.find('<MinorBody Id="Phobos"')
+    rot_close = text.find("</Rotation>", phobos_start) + len("</Rotation>")
+    phobos_lm = """
+        <Landmark Id="HelloWorld">
+            <Latitude Degrees="0.0" />
+            <Longitude Degrees="0.0" />
+        </Landmark>
+        <Landmark Id="AlienBlob">
+            <Latitude Degrees="0.0" />
+            <Longitude Degrees="0.0" />
+        </Landmark>"""
+    text = text[:rot_close] + phobos_lm + text[rot_close:]
+
+    ASTRO.write_text(text, encoding="utf-8")
+
+    r = subprocess.run(["xmllint","--noout",str(ASTRO)],
+                       capture_output=True, text=True)
+    if r.returncode != 0:
+        shutil.copy2(ASTRO_BAK, ASTRO)
+        sys.exit(f"XML validation failed — restored backup\n{r.stderr}")
+    print("  Core/Astronomicals.xml patched")
 
 
 def unpatch_astronomicals():
     if not ASTRO_BAK.exists():
-        print("  No backup found — Core/Astronomicals.xml not modified by this installer.")
+        print("  No backup found")
         return
     shutil.copy2(ASTRO_BAK, ASTRO)
     ASTRO_BAK.unlink()
-    print("  Core/Astronomicals.xml restored from backup.")
-
-
-def copy_core_assets():
-    """Copy Luna rock assets from Core into our mod folder.
-    These are needed at runtime but can't be redistributed in the package.
-    """
-    copies = [
-        # (source relative to CORE, dest relative to MOD)
-        ("Textures/Planets/Luna/GroundClutter/TestRocks_Diffuse.ktx2",
-         "Textures/Planets/Luna/GroundClutter/TestRocks_Diffuse.ktx2"),
-        ("Textures/Planets/Luna/GroundClutter/TestRocks_Normal.dds",
-         "Textures/Planets/Luna/GroundClutter/TestRocks_Normal.dds"),
-        ("Textures/Planets/Luna/GroundClutter/TestRocks_AoRoughMetal.dds",
-         "Textures/Planets/Luna/GroundClutter/TestRocks_AoRoughMetal.dds"),
-        ("Meshes/Planets/Luna/GroundClutter/Rock0Lod0.glb",
-         "Meshes/Planets/Luna/GroundClutter/Rock0Lod0.glb"),
-        ("Meshes/Planets/Luna/GroundClutter/Rock0Lod1.glb",
-         "Meshes/Planets/Luna/GroundClutter/Rock0Lod1.glb"),
-        ("Meshes/Planets/Luna/GroundClutter/Rock0Lod2.glb",
-         "Meshes/Planets/Luna/GroundClutter/Rock0Lod2.glb"),
-        ("Meshes/Planets/Luna/GroundClutter/Rock0Lod3.glb",
-         "Meshes/Planets/Luna/GroundClutter/Rock0Lod3.glb"),
-        ("Meshes/Planets/Luna/GroundClutter/Rock0Lod4.glb",
-         "Meshes/Planets/Luna/GroundClutter/Rock0Lod4.glb"),
-    ]
-    for src_rel, dst_rel in copies:
-        src = CORE / src_rel
-        dst = MOD  / dst_rel
-        if not src.exists():
-            print(f"  WARN: Core asset not found: {src_rel} — skipping")
-            continue
-        dst.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(src, dst)
-    print(f"  Copied {len(copies)} Core assets into HelloPhobos/")
-
-
-def remove_core_assets():
-    for d in ["Meshes/Planets/Luna", "Textures/Planets/Luna"]:
-        p = MOD / d
-        if p.exists():
-            shutil.rmtree(p)
-    print("  Removed copied Core assets from HelloPhobos/")
-
-
-def copy_decal_textures():
-    """Copy decal PNGs into Core texture path (generated on dwalin)."""
-    phobos_tex = CORE / "Textures/Planets/Phobos"
-    phobos_tex.mkdir(parents=True, exist_ok=True)
-    for name in ["PhobosBlob.png", "PhobosHelloWorld.png"]:
-        src = MOD / "Textures/Planets/Phobos" / name
-        dst = phobos_tex / name
-        if src.exists():
-            shutil.copy2(src, dst)
-            print(f"  Copied {name} → Core/Textures/Planets/Phobos/")
-        elif dst.exists():
-            print(f"  {name} already in Core/Textures/Planets/Phobos/")
-        else:
-            print(f"  WARN: {name} not found in mod or Core — run generate_textures.py")
-
-
-def remove_decal_textures():
-    for name in ["PhobosBlob.png", "PhobosHelloWorld.png"]:
-        p = CORE / "Textures/Planets/Phobos" / name
-        if p.exists():
-            p.unlink()
-            print(f"  Removed Core/Textures/Planets/Phobos/{name}")
+    print("  Core/Astronomicals.xml restored")
 
 
 def patch_manifest():
     text = MANIFEST.read_text()
     if 'id = "HelloPhobos"' in text:
-        print("  manifest.toml already contains HelloPhobos — skipping.")
+        print("  manifest.toml already registered")
         return
-    with open(MANIFEST, "a") as f:
+    with open(MANIFEST,"a") as f:
         f.write('\n[[mods]]\nid = "HelloPhobos"\nenabled = true\n')
-    print("  manifest.toml updated.")
+    print("  manifest.toml updated")
 
 
 def unpatch_manifest():
     text = MANIFEST.read_text()
-    # Remove the HelloPhobos block
     cleaned = re.sub(
         r'\n\[\[mods\]\]\nid = "HelloPhobos"\nenabled = (true|false)\n',
         '', text)
     MANIFEST.write_text(cleaned)
-    print("  HelloPhobos removed from manifest.toml.")
+    print("  HelloPhobos removed from manifest.toml")
 
 
-def generate_textures():
-    """Generate the decal PNGs if not already present."""
-    blob = MOD / "Textures/Planets/Phobos/PhobosBlob.png"
-    hw   = MOD / "Textures/Planets/Phobos/PhobosHelloWorld.png"
-    if blob.exists() and hw.exists():
-        return
-    print("  Generating decal textures...")
-    (MOD / "Textures/Planets/Phobos").mkdir(parents=True, exist_ok=True)
-    try:
-        from PIL import Image, ImageDraw, ImageFont, ImageFilter
-        import math, random
-
-        # Blob
-        size = 512
-        img = Image.new("RGBA", (size, size), (0,0,0,0))
-        draw = ImageDraw.Draw(img)
-        cx, cy = size//2, size//2
-        base_r = size * 0.38
-        rng = random.Random(42)
-        harmonics = [(1,0.12),(2,0.09),(3,0.07),(4,0.05),(5,0.04),(7,0.03)]
-        phases = [rng.uniform(0, 2*math.pi) for _ in harmonics]
-        def blob_r(theta):
-            r = base_r
-            for (freq,amp),phase in zip(harmonics,phases):
-                r += base_r * amp * math.sin(freq*theta+phase)
-            return r
-        N = 256
-        pts = [(cx+blob_r(2*math.pi*i/N)*math.cos(2*math.pi*i/N),
-                cy+blob_r(2*math.pi*i/N)*math.sin(2*math.pi*i/N)) for i in range(N)]
-        draw.polygon(pts, fill=(255,255,255,255))
-        img = img.filter(ImageFilter.GaussianBlur(radius=8))
-        img.save(str(blob))
-
-        # Hello World (mirrored)
-        img2 = Image.new("RGBA", (size, size), (0,0,0,0))
-        draw2 = ImageDraw.Draw(img2)
-        font = None
-        for fp in ["/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
-                   "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf",
-                   "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"]:
-            try: font = ImageFont.truetype(fp, 72); break
-            except: pass
-        if not font: font = ImageFont.load_default()
-        for i, word in enumerate(["HELLO","WORLD"]):
-            bb = draw2.textbbox((0,0), word, font=font)
-            tw,th = bb[2]-bb[0], bb[3]-bb[1]
-            x,y = (size-tw)//2, 80+i*(th+30)
-            for dx in range(-4,5):
-                for dy in range(-4,5):
-                    draw2.text((x+dx,y+dy), word, fill=(180,180,180,255), font=font)
-            draw2.text((x,y), word, fill=(255,255,255,255), font=font)
-        img2 = img2.filter(ImageFilter.GaussianBlur(radius=3))
-        img2 = img2.transpose(Image.FLIP_LEFT_RIGHT)
-        img2.save(str(hw))
-        print("  Decal textures generated.")
-    except ImportError:
-        print("  WARN: Pillow not installed. Install with:")
-        print("        pip install pillow --break-system-packages")
-        print("  Then re-run this installer.")
+def remove_core_assets():
+    for d in [MOD/"Meshes/Planets/Luna",
+              MOD/"Textures/Planets/Luna"]:
+        if d.exists():
+            shutil.rmtree(d)
+    print("  Core asset copies removed")
 
 
 def install():
     print("\nHelloPhobos Installer")
-    print("=" * 40)
-    generate_textures()
-    copy_decal_textures()
-    patch_astronomicals()
+    print("=" * 50)
+    try:
+        from PIL import Image
+        generate_textures()
+    except ImportError:
+        print("  WARN: Pillow not installed — textures not regenerated")
+        print("        pip install pillow --break-system-packages")
+        if not (CORE/"Textures/Planets/Phobos/PhobosBlob.png").exists():
+            sys.exit("  ERROR: Textures missing. Install Pillow and re-run.")
+
     copy_core_assets()
+    patch_astronomicals()
     patch_manifest()
-    print("\n✓ Installation complete!")
-    print("  Launch KSA and navigate to Phobos.")
-    print("  HELLO WORLD is at lat=0 lon=180")
-    print("  The blob is at lat=0 lon=0 (Mars-facing)")
+
+    print(f"""
+✓ Installation complete!
+
+WHAT'S INSTALLED:
+  Phobos — HELLO WORLD terrain text visible from close orbit
+           Alien blob creature terrain feature
+           Landmarks: HelloWorld, AlienBlob
+           GroundClutter: small and giant alien rock creatures
+
+  Luna   — HELLO MOON terrain text (lon=16, lat=0.674)
+           Landing rings challenge target (lon=11, lat=0.674)
+           Landmarks: HelloMoon, LandingRings, TestDecalSite
+
+  Starting situations:
+           PhobosAliens — low Phobos orbit above HelloWorld site
+
+KNOWN LIMITATIONS (KSA pre-alpha):
+  - GroundClutter from mod Astronomicals.xml does not merge with Core
+    (creatures use Core/Astronomicals.xml insertion — rock placeholders)
+  - Terrain decals modify height only (no colour change)
+  - Luna surface features subtle due to existing terrain variation
+  - Orbital visibility of Luna features requires close approach
+
+Launch KSA and select 'Phobos Alien Encounter' from the system menu.
+""")
 
 
 def uninstall():
     print("\nHelloPhobos Uninstaller")
-    print("=" * 40)
+    print("=" * 50)
     unpatch_astronomicals()
     remove_core_assets()
-    remove_decal_textures()
     unpatch_manifest()
-    print("\n✓ Uninstallation complete. KSA restored to vanilla state.")
+    print("\n✓ Uninstalled. KSA restored to vanilla state.")
 
 
 if __name__ == "__main__":

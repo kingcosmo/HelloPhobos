@@ -1,14 +1,6 @@
-# HelloPhobos mod.toml
-# The 'id' is the folder name under Content/
-# Drop this folder at: Content/HelloPhobos/
-# Then add to Content/manifest.toml:
-#   [[mods]]
-#   id = "HelloPhobos"
-#   enabled = true
-
 name = "HelloPhobos"
+assets  = [ "Astronomicals.xml", "Situations.xml" ]
+systems = [ "PhobosSystem.xml" ]
 
-# assets lists the XML files this mod contributes.
-# The engine loads Astronomicals.xml from EVERY enabled mod,
-# so our MinorBody entry for Phobos gets merged in alongside Core's.
-assets = [ "Astronomicals.xml" ]
+[console]
+onLoad = [ ]
