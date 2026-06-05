@@ -44,10 +44,20 @@ To uninstall: `python3 Content/HelloPhobos/install.py --uninstall`
 | LandingRings landmark | Navigation marker | lat=0.674, lon=11.0 | ✓ Working |
 | TestDecalSite landmark | Navigation marker | lat=0, lon=0 | ✓ Working |
 
+### Mars
+| Feature | Type | Location | Status |
+|---|---|---|---|
+| Jezero Crater rings | Terrain decal | lat=18.4, lon=77.6 | ✓ Working — visible from ~5000km approach |
+| Jezero Crater text | Terrain decal | lat=18.4, lon=72.0 | ✓ Working |
+| Isidis Planitia rings | Terrain decal | lat=4.0, lon=87.0 | ✓ Working |
+| JezeroCrater landmark | Navigation marker | lat=18.4, lon=77.6 | ✓ Working |
+| IsidisPlanitia landmark | Navigation marker | lat=4.0, lon=87.0 | ✓ Working |
+
 ### Starting Situations
 | System | Description | Status |
 |---|---|---|
 | Phobos Alien Encounter | Low Phobos orbit, Gemini7 above HelloWorld | ✓ Working |
+| Mars Landing Challenge | Low Mars orbit, Gemini7 near Jezero Crater | ✓ Working |
 
 ---
 
@@ -107,6 +117,19 @@ Simple named navigation markers in the map view.
 
 Must be placed at the body level (sibling of `<MeanRadius>`, `<Mass>` etc),
 NOT inside `<Terrain>`. The Apollo landing sites show the correct pattern.
+
+**Key discovery for Mars:** Jezero Crater rings (Amplitude=5000m, Radius=200km,
+SmoothFactor=0.05) are clearly visible from ~5000km approach altitude as
+concentric raised ridges with compass arms. The ship spawns at ~507m above
+the reference ellipsoid confirming the terrain is raised. The rings become
+visible at approach altitude (not from deep space orbit) which creates good
+gameplay — you must navigate to the right location before the target appears.
+
+**Optimal parameters for Mars-scale bodies (r≈3389km):**
+- Amplitude: 5000m (Mars has significant natural terrain variation)
+- Radius: 200000m (200km — ~3.4° of arc, visible at ~5000km altitude)
+- SmoothFactor: 0.05 (sharp cliff walls for maximum shadow contrast)
+- Biomes: specify all relevant biomes to ensure coverage
 
 **3. GroundClutter (confirmed schema)**
 The GroundClutter scatter system works for Earth and Luna in Core and CAN

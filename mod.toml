@@ -1,6 +1,6 @@
 name = "HelloPhobos"
 assets  = [ "Astronomicals.xml", "Situations.xml" ]
-systems = [ "PhobosSystem.xml" ]
+systems = [ "PhobosSystem.xml", "MarsSystem.xml" ]
 
 [console]
 onLoad = [ ]

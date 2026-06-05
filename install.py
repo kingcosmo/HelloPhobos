@@ -26,6 +26,8 @@ MARKER_PHOBOS_START= '<!-- ── HelloPhobos: Phobos decals ── -->'
 MARKER_PHOBOS_END  = '<!-- ── end HelloPhobos Phobos decals ── -->'
 MARKER_CLUTTER_START='<!-- ── HelloPhobos: Phobos GroundClutter ── -->'
 MARKER_CLUTTER_END  ='<!-- ── end HelloPhobos GroundClutter ── -->'
+MARKER_MARS_START   ='<!-- ── HelloPhobos: Mars landing targets ── -->'
+MARKER_MARS_END     ='<!-- ── end HelloPhobos Mars features ── -->'
 
 LUNA_DECALS = f"""
                 {MARKER_LUNA_START}
@@ -211,6 +213,59 @@ PHOBOS_CLUTTER = f"""        {MARKER_CLUTTER_START}
         {MARKER_CLUTTER_END}
 """
 
+MARS_DECALS = f"""
+                {MARKER_MARS_START}
+                <Modifier Type="Decal" Name="MarsJezeroRings" Biomes="SandOnly,SandAndCliffs,VallesMarineris">
+                    <Amplitude Value="5000" />
+                    <Order Value="9997" />
+                    <Radius Value="200000" />
+                    <Rotation Degrees="0" />
+                    <Location Id="HP_JezeroLocation">
+                        <Latitude Degrees="18.4" />
+                        <Longitude Degrees="77.6" />
+                    </Location>
+                    <AltitudeOffset Km="0" />
+                    <SmoothFactor Value="0.05" />
+                    <Additive Value="true" />
+                    <HeightMap Id="HP_MarsJezeroRingsHM"
+                        Path="Textures/Planets/Mars/MarsJezeroRings.png"
+                        Category="Terrain"/>
+                </Modifier>
+                <Modifier Type="Decal" Name="MarsJezeroText" Biomes="SandOnly,SandAndCliffs,VallesMarineris">
+                    <Amplitude Value="4000" />
+                    <Order Value="9996" />
+                    <Radius Value="150000" />
+                    <Rotation Degrees="0" />
+                    <Location Id="HP_JezeroTextLocation">
+                        <Latitude Degrees="18.4" />
+                        <Longitude Degrees="72.0" />
+                    </Location>
+                    <AltitudeOffset Km="0" />
+                    <SmoothFactor Value="0.1" />
+                    <Additive Value="true" />
+                    <HeightMap Id="HP_MarsJezeroTextHM"
+                        Path="Textures/Planets/Mars/MarsJezeroText.png"
+                        Category="Terrain"/>
+                </Modifier>
+                <Modifier Type="Decal" Name="MarsIsidisRings" Biomes="SandOnly,SandAndCliffs,VallesMarineris">
+                    <Amplitude Value="5000" />
+                    <Order Value="9995" />
+                    <Radius Value="200000" />
+                    <Rotation Degrees="0" />
+                    <Location Id="HP_IsidisLocation">
+                        <Latitude Degrees="4.0" />
+                        <Longitude Degrees="87.0" />
+                    </Location>
+                    <AltitudeOffset Km="0" />
+                    <SmoothFactor Value="0.05" />
+                    <Additive Value="true" />
+                    <HeightMap Id="HP_MarsIsidisRingsHM"
+                        Path="Textures/Planets/Mars/MarsIsidisRings.png"
+                        Category="Terrain"/>
+                </Modifier>
+                {MARKER_MARS_END}
+"""
+
 def generate_textures():
     """Generate PNG heightmap textures for terrain decals."""
     from PIL import Image, ImageDraw, ImageFont, ImageFilter
@@ -296,6 +351,54 @@ def generate_textures():
     img4 = img4.filter(ImageFilter.GaussianBlur(radius=3))
     img4.save(str(luna_tex / "LunaLandingRings.png"))
 
+    # Mars landing target textures
+    mars_tex = CORE / "Textures/Planets/Mars"
+    mars_tex.mkdir(parents=True, exist_ok=True)
+
+    def make_rings_rgba(filename):
+        img = Image.new("RGBA", (512,512), (0,0,0,255))
+        draw = ImageDraw.Draw(img)
+        cx2, cy2 = 256, 256
+        for outer_f, inner_f, v in [(0.48,0.42,255),(0.35,0.29,220),
+                                     (0.22,0.17,200),(0.11,0.07,230),(0.04,0,255)]:
+            or_=int(outer_f*512); ir_=int(inner_f*512)
+            draw.ellipse([cx2-or_,cy2-or_,cx2+or_,cy2+or_],fill=(v,v,v,255))
+            if inner_f>0:
+                draw.ellipse([cx2-ir_,cy2-ir_,cx2+ir_,cy2+ir_],fill=(0,0,0,255))
+        for ang2 in [0,90,180,270]:
+            a2=math.radians(ang2); r2=int(0.48*512); arm2=int(0.10*512)
+            x1=int(cx2+r2*math.sin(a2)); y1=int(cy2-r2*math.cos(a2))
+            x2=int(cx2+(r2+arm2)*math.sin(a2)); y2=int(cy2-(r2+arm2)*math.cos(a2))
+            draw.line([(x1,y1),(x2,y2)],fill=(255,255,255,255),width=max(3,512//60))
+        img = img.filter(ImageFilter.GaussianBlur(radius=4))
+        img.save(str(mars_tex/filename))
+
+    def make_text_rgba(filename, lines):
+        img = Image.new("RGBA",(512,512),(0,0,0,0))
+        draw = ImageDraw.Draw(img)
+        fnt = None
+        for fp in ["/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+                   "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"]:
+            try: fnt=ImageFont.truetype(fp,80); break
+            except: pass
+        if not fnt: fnt=ImageFont.load_default()
+        for i,word in enumerate(lines):
+            bb=draw.textbbox((0,0),word,font=fnt)
+            tw,th=bb[2]-bb[0],bb[3]-bb[1]
+            x=(512-tw)//2; y=60+i*(th+30)
+            for dx in range(-5,6):
+                for dy in range(-5,6):
+                    draw.text((x+dx,y+dy),word,fill=(160,160,160,255),font=fnt)
+            draw.text((x,y),word,fill=(255,255,255,255),font=fnt)
+        img=img.filter(ImageFilter.GaussianBlur(radius=3))
+        img=img.transpose(Image.FLIP_LEFT_RIGHT)
+        img.save(str(mars_tex/filename))
+
+    make_rings_rgba("MarsJezeroRings.png")
+    make_rings_rgba("MarsIsidisRings.png")
+    make_text_rgba("MarsJezeroText.png", ["JEZERO","CRATER"])
+    make_text_rgba("MarsIsidisText.png", ["ISIDIS","PLANITIA"])
+
     print("  Textures generated")
 
 
@@ -351,7 +454,15 @@ def patch_astronomicals():
     pos3 = text.find(bm_close, phobos_start) + len(bm_close)
     text = text[:pos3] + "\n" + PHOBOS_CLUTTER + text[pos3:]
 
-    # 4. Luna landmarks — after Apollo15
+    # 4. Mars decals — insert before </ProceduralModifiers> in Mars block
+    mars_start = text.find('<AtmosphericBody Id="Mars"')
+    if mars_start == -1:
+        mars_start = text.find('<PlanetaryBody Id="Mars"')
+    mars_proc_close = "</ProceduralModifiers>"
+    pos4 = text.find(mars_proc_close, mars_start)
+    text = text[:pos4] + MARS_DECALS + text[pos4:]
+
+    # 5. Luna landmarks — after Apollo15
     anchor = '<Landmark Id="Apollo15">'
     ap_pos = text.find(anchor)
     close_lm = text.find("</Landmark>", ap_pos) + len("</Landmark>")
@@ -370,7 +481,21 @@ def patch_astronomicals():
         </Landmark>"""
     text = text[:close_lm] + luna_lm + text[close_lm:]
 
-    # 5. Phobos landmarks — after </Rotation> in Phobos block
+    # 5. Mars landmarks — after Spirit landmark
+    spirit_pos = text.find('<Landmark Id="Spirit">')
+    close_spirit = text.find("</Landmark>", spirit_pos) + len("</Landmark>")
+    mars_lm = """
+        <Landmark Id="JezeroCrater">
+            <Latitude Degrees="18.4" />
+            <Longitude Degrees="77.6" />
+        </Landmark>
+        <Landmark Id="IsidisPlanitia">
+            <Latitude Degrees="4.0" />
+            <Longitude Degrees="87.0" />
+        </Landmark>"""
+    text = text[:close_spirit] + mars_lm + text[close_spirit:]
+
+    # 7. Phobos landmarks — after </Rotation> in Phobos block
     phobos_start = text.find('<MinorBody Id="Phobos"')
     rot_close = text.find("</Rotation>", phobos_start) + len("</Rotation>")
     phobos_lm = """
@@ -460,7 +585,8 @@ WHAT'S INSTALLED:
            Landmarks: HelloMoon, LandingRings, TestDecalSite
 
   Starting situations:
-           PhobosAliens — low Phobos orbit above HelloWorld site
+           PhobosAliens  — low Phobos orbit above HelloWorld site
+           MarsLanding   — low Mars orbit, start near Jezero Crater
 
 KNOWN LIMITATIONS (KSA pre-alpha):
   - GroundClutter from mod Astronomicals.xml does not merge with Core
